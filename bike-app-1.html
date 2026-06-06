@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VeloTrack</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --acc-spd: #00e5ff;
+  --acc-avg: #69f0ae;
+  --acc-max: #ff6d3a;
+  --acc-dst: #b39ddb;
+}
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: #060e1a;
+  color: #fff;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+  flex-shrink: 0;
+}
+.logo {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #00e5ff;
+  text-shadow: 0 0 18px #00e5ff88;
+}
+.status-row { display:flex; gap:8px; align-items:center; }
+.badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; letter-spacing: 1px;
+  padding: 3px 9px; border-radius: 20px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: all 0.4s;
+}
+.badge.active  { border-color:#69f0ae55; color:#69f0ae; }
+.badge.waiting { border-color:#ffb30055; color:#ffb300; }
+.badge.error   { border-color:#ff525255; color:#ff5252; }
+.dot {
+  width:7px; height:7px; border-radius:50%;
+  background:currentColor;
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.timer-badge {
+  font-family:'Orbitron',monospace; font-size:11px;
+  padding:3px 9px; border-radius:20px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.08);
+  letter-spacing:1px;
+}
+
+/* ── TILES ── */
+.tiles {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 0 8px 6px; flex-shrink: 0;
+}
+.tile {
+  position: relative; border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 10px 8px;
+}
+.tile-glow {
+  position:absolute; top:0; left:0; right:0; height:2px; opacity:.7;
+}
+.tile-wm {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:100px; opacity:.045; line-height:1;
+  user-select:none; pointer-events:none; filter:blur(2px);
+}
+.tile-label {
+  font-size:10px; font-weight:600; letter-spacing:2px;
+  text-transform:uppercase; opacity:.5; margin-bottom:4px;
+  position:relative; z-index:1;
+}
+.tile-val {
+  font-family:'Orbitron',monospace; font-weight:700;
+  line-height:1; position:relative; z-index:1;
+}
+.tile-unit {
+  font-size:13px; font-weight:600; opacity:.5; margin-left:4px;
+}
+.tile-sub {
+  font-size:10px; opacity:.38; margin-top:5px;
+  font-weight:600; letter-spacing:1px; position:relative; z-index:1;
+}
+
+/* speed */
+.tile-spd { background:linear-gradient(135deg,#0a1628,#0e2545); height:108px; }
+.tile-spd .tile-glow { background:linear-gradient(90deg,transparent,var(--acc-spd),transparent); }
+.tile-spd .tile-val  { font-size:68px; color:var(--acc-spd); text-shadow:0 0 28px #00e5ff55; }
+.tile-spd .tile-wm   { font-size:140px; }
+
+/* row */
+.tile-row { display:flex; gap:6px; height:82px; }
+.tile-row .tile { flex:1; }
+
+/* avg */
+.tile-avg { background:linear-gradient(135deg,#0d2137,#0b2e20); }
+.tile-avg .tile-glow { background:linear-gradient(90deg,transparent,var(--acc-avg),transparent); }
+.tile-avg .tile-val  { font-size:34px; color:var(--acc-avg); text-shadow:0 0 18px #69f0ae44; }
+
+/* max */
+.tile-max { background:linear-gradient(135deg,#1a1208,#2d1408); }
+.tile-max .tile-glow { background:linear-gradient(90deg,transparent,var(--acc-max),transparent); }
+.tile-max .tile-val  { font-size:34px; color:var(--acc-max); text-shadow:0 0 18px #ff6d3a44; }
+
+/* dist */
+.tile-dst { background:linear-gradient(135deg,#0d0e20,#120d2a); height:82px; }
+.tile-dst .tile-glow { background:linear-gradient(90deg,transparent,var(--acc-dst),transparent); }
+.tile-dst .tile-val  { font-size:40px; color:var(--acc-dst); text-shadow:0 0 22px #b39ddb44; }
+
+/* ── MAP ── */
+.map-wrap {
+  flex:1; position:relative;
+  border-radius:16px 16px 0 0; overflow:hidden;
+  margin:0 8px;
+  border:1px solid rgba(255,255,255,0.08); border-bottom:none;
+  min-height:0;
+}
+#map { width:100%; height:100%; background:#0a1628; }
+
+/* canvas fallback */
+#mapCanvas {
+  width:100%; height:100%;
+  display:none;
+  background:#0a1628;
+}
+
+.map-btns {
+  position:absolute; top:10px; left:50%;
+  transform:translateX(-50%);
+  display:flex; gap:8px; z-index:500;
+}
+.map-btn {
+  background:rgba(6,14,26,.92);
+  border:1px solid rgba(255,255,255,.15);
+  color:#fff; font-family:'Rajdhani',sans-serif;
+  font-size:12px; font-weight:600; letter-spacing:1px;
+  padding:5px 12px; border-radius:20px;
+  cursor:pointer; transition:all .2s;
+  backdrop-filter:blur(6px);
+}
+.map-btn.active, .map-btn:hover {
+  background:rgba(0,229,255,.15);
+  border-color:var(--acc-spd); color:var(--acc-spd);
+}
+.demo-notice {
+  position:absolute; bottom:8px; left:50%;
+  transform:translateX(-50%);
+  background:rgba(255,179,0,.15);
+  border:1px solid rgba(255,179,0,.3);
+  color:#ffb300; font-size:10px; font-weight:600;
+  letter-spacing:1px; padding:4px 12px;
+  border-radius:20px; z-index:500;
+  white-space:nowrap; display:none;
+}
+.fab {
+  position:absolute; bottom:14px; right:14px;
+  z-index:600; width:48px; height:48px;
+  border-radius:50%; background:#00e5ff;
+  color:#060e1a; font-size:20px; border:none;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 20px #00e5ff66; transition:all .2s;
+}
+.fab:active { transform:scale(.93); }
+.fab.rec { background:#ff5252; box-shadow:0 4px 20px #ff525266; }
+
+/* leaflet dark */
+.leaflet-tile { filter:brightness(.45) saturate(.3) hue-rotate(200deg); }
+.leaflet-control-zoom a {
+  background:rgba(6,14,26,.92)!important;
+  color:#aaa!important;
+  border-color:rgba(255,255,255,.1)!important;
+}
+.leaflet-control-zoom a:hover { color:#00e5ff!important; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">VELO</div>
+  <div class="status-row">
+    <div class="badge waiting" id="gpsBadge">
+      <div class="dot"></div><span id="gpsText">GPS…</span>
+    </div>
+    <div class="timer-badge" id="timerEl">00:00:00</div>
+  </div>
+</div>
+
+<!-- TILES -->
+<div class="tiles">
+
+  <!-- PRĘDKOŚĆ -->
+  <div class="tile tile-spd">
+    <div class="tile-glow"></div>
+    <div class="tile-wm">⚡</div>
+    <div class="tile-label">Prędkość aktualna</div>
+    <div><span class="tile-val" id="spdVal">0.0</span><span class="tile-unit">km/h</span></div>
+    <div class="tile-sub" id="spdSub">Naciśnij ▶ aby rozpocząć</div>
+  </div>
+
+  <!-- ŚREDNIA + MAKS -->
+  <div class="tile-row">
+    <div class="tile tile-avg">
+      <div class="tile-glow"></div>
+      <div class="tile-wm" style="font-size:80px">∅</div>
+      <div class="tile-label">Śr. prędkość</div>
+      <div><span class="tile-val" id="avgVal">0.0</span><span class="tile-unit">km/h</span></div>
+    </div>
+    <div class="tile tile-max">
+      <div class="tile-glow"></div>
+      <div class="tile-wm" style="font-size:80px">↑</div>
+      <div class="tile-label">Maks. prędkość</div>
+      <div><span class="tile-val" id="maxVal">0.0</span><span class="tile-unit">km/h</span></div>
+    </div>
+  </div>
+
+  <!-- DYSTANS -->
+  <div class="tile tile-dst">
+    <div class="tile-glow"></div>
+    <div class="tile-wm">🚴</div>
+    <div class="tile-label">Dystans</div>
+    <div><span class="tile-val" id="dstVal">0.00</span><span class="tile-unit" id="dstUnit">km</span></div>
+  </div>
+
+</div>
+
+<!-- MAP -->
+<div class="map-wrap">
+  <div id="map"></div>
+  <canvas id="mapCanvas"></canvas>
+
+  <div class="map-btns">
+    <button class="map-btn active" id="btnFollow" onclick="toggleFollow()">📍 Śledź</button>
+    <button class="map-btn active" id="btnTrack"  onclick="toggleTrack()">🛤 Trasa</button>
+  </div>
+  <div class="demo-notice" id="demoNotice">TRYB DEMO – BRAK GPS</div>
+  <button class="fab" id="fabBtn" onclick="toggleRec()">▶</button>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────
+var recording = false, gpsOk = false;
+var followMap = true, showTrack = true;
+var curSpd = 0, maxSpd = 0, totalDist = 0;
+var spdSamples = [], lastPos = null, trackPts = [];
+var startTime = null, timerIv = null, watchId = null;
+var demoActive = false, demoIv = null;
+var demoLat = 52.2297, demoLng = 21.0122, demoHdg = 45;
+
+// ── LEAFLET (loaded dynamically, safe) ──────────────
+var lmap = null, lmarker = null, lpoly = null;
+var useLeaflet = false;
+
+function initLeaflet() {
+  try {
+    lmap = L.map('map', { zoomControl:true, attributionControl:false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(lmap);
+    var icon = L.divIcon({
+      className:'',
+      html:'<div style="width:16px;height:16px;background:#00e5ff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #00e5ff"></div>',
+      iconSize:[16,16], iconAnchor:[8,8]
+    });
+    lmarker = L.marker([demoLat, demoLng], {icon:icon}).addTo(lmap);
+    lpoly = L.polyline([], {color:'#00e5ff', weight:3, opacity:.85}).addTo(lmap);
+    lmap.setView([demoLat, demoLng], 15);
+    useLeaflet = true;
+    document.getElementById('map').style.display = 'block';
+    document.getElementById('mapCanvas').style.display = 'none';
+  } catch(e) {
+    fallbackCanvas();
+  }
+}
+
+function loadLeaflet(cb) {
+  if (window.L) { cb(); return; }
+  // CSS
+  var lc = document.createElement('link');
+  lc.rel = 'stylesheet';
+  lc.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(lc);
+  // JS
+  var ls = document.createElement('script');
+  ls.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  ls.onload = cb;
+  ls.onerror = fallbackCanvas;
+  document.head.appendChild(ls);
+}
+
+// ── CANVAS FALLBACK ────────────────────────────────
+var cvs, ctx;
+function fallbackCanvas() {
+  useLeaflet = false;
+  document.getElementById('map').style.display = 'none';
+  cvs = document.getElementById('mapCanvas');
+  cvs.style.display = 'block';
+  ctx = cvs.getContext('2d');
+  resizeCanvas();
+  drawCanvas();
+}
+function resizeCanvas() {
+  if (!cvs) return;
+  cvs.width  = cvs.offsetWidth;
+  cvs.height = cvs.offsetHeight;
+}
+function drawCanvas() {
+  if (!ctx) return;
+  var w = cvs.width, h = cvs.height;
+  ctx.fillStyle = '#0a1628'; ctx.fillRect(0,0,w,h);
+  // grid
+  ctx.strokeStyle = 'rgba(0,229,255,.06)'; ctx.lineWidth = 1;
+  for (var x=0; x<w; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (var y=0; y<h; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+  // track
+  if (trackPts.length > 1) {
+    var bounds = getBounds(trackPts);
+    ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (var i=0; i<trackPts.length; i++) {
+      var p = latLngToCanvas(trackPts[i][0], trackPts[i][1], bounds, w, h);
+      if (i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  // dot
+  if (lastPos) {
+    var bounds2 = trackPts.length>1 ? getBounds(trackPts) : {
+      minLat:lastPos[0]-.005, maxLat:lastPos[0]+.005,
+      minLng:lastPos[1]-.005, maxLng:lastPos[1]+.005
+    };
+    var dp = latLngToCanvas(lastPos[0], lastPos[1], bounds2, w, h);
+    ctx.beginPath(); ctx.arc(dp.x, dp.y, 8, 0, Math.PI*2);
+    ctx.fillStyle='#00e5ff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(dp.x, dp.y, 14, 0, Math.PI*2);
+    ctx.strokeStyle='rgba(0,229,255,.3)'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  // label
+  if (!lastPos) {
+    ctx.fillStyle='rgba(0,229,255,.25)'; ctx.font='13px Rajdhani,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Mapa załaduje się po uzyskaniu GPS', w/2, h/2 - 10);
+    ctx.fillText('lub po podłączeniu do internetu', w/2, h/2 + 12);
+  }
+}
+function getBounds(pts) {
+  var minLat=pts[0][0],maxLat=pts[0][0],minLng=pts[0][1],maxLng=pts[0][1];
+  pts.forEach(function(p){ minLat=Math.min(minLat,p[0]); maxLat=Math.max(maxLat,p[0]); minLng=Math.min(minLng,p[1]); maxLng=Math.max(maxLng,p[1]); });
+  var pad=.001;
+  return {minLat:minLat-pad,maxLat:maxLat+pad,minLng:minLng-pad,maxLng:maxLng+pad};
+}
+function latLngToCanvas(lat, lng, b, w, h) {
+  var x = (lng - b.minLng) / (b.maxLng - b.minLng) * w;
+  var y = (1 - (lat - b.minLat) / (b.maxLat - b.minLat)) * h;
+  return {x:x, y:y};
+}
+
+// ── MAP HELPERS ────────────────────────────────────
+function mapSetView(lat, lng) {
+  if (useLeaflet && lmap) lmap.setView([lat,lng], 16);
+}
+function mapUpdateMarker(lat, lng) {
+  if (useLeaflet && lmarker) lmarker.setLatLng([lat,lng]);
+  else drawCanvas();
+}
+function mapUpdateTrack() {
+  if (useLeaflet && lpoly) {
+    lpoly.setLatLngs(showTrack ? trackPts : []);
+  } else drawCanvas();
+}
+
+// ── GPS ────────────────────────────────────────────
+function startGPS() {
+  if (!('geolocation' in navigator)) { startDemo(); return; }
+  watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr, {
+    enableHighAccuracy:true, maximumAge:1000, timeout:12000
+  });
+  setTimeout(function(){ if (!gpsOk) startDemo(); }, 10000);
+}
+
+function onGPS(pos) {
+  gpsOk = true;
+  hideDemoNotice();
+  setBadge('active','GPS OK');
+  var lat = pos.coords.latitude, lng = pos.coords.longitude;
+  var spd = pos.coords.speed;
+  var acc = pos.coords.accuracy || 99;
+
+  // Prędkość z GPS (m/s -> km/h); ponizej 2 km/h = stoisz (filtr szumu GPS)
+  var rawSpd = (spd != null) ? spd * 3.6 : 0;
+  curSpd = (rawSpd < 2.0) ? 0 : rawSpd;
+
+  if (recording && lastPos) {
+    if (curSpd > 2.0) {
+      var d = haversine(lastPos[0], lastPos[1], lat, lng);
+      // Ignoruj skoki >200m miedzy probkami (blad GPS)
+      if (d < 200) {
+        totalDist += d;
+        if (showTrack) trackPts.push([lat,lng]);
+      }
+    }
+    // Srednia tylko z probek gdy jedziesz
+    if (curSpd > 0) spdSamples.push(curSpd);
+    if (curSpd > maxSpd) maxSpd = curSpd;
+    mapUpdateTrack();
+  }
+  lastPos = [lat, lng];
+  mapUpdateMarker(lat, lng);
+  if (followMap) mapSetView(lat, lng);
+  updateUI();
+}
+function onGPSErr() { setBadge('error','Brak GPS'); startDemo(); }
+
+// ── DEMO ───────────────────────────────────────────
+function startDemo() {
+  if (demoActive) return;
+  demoActive = true;
+  document.getElementById('demoNotice').style.display = 'block';
+  setBadge('waiting','DEMO');
+  lastPos = [demoLat, demoLng];
+  if (useLeaflet && lmap) lmap.setView([demoLat, demoLng], 15);
+  drawCanvas();
+
+  demoIv = setInterval(function() {
+    if (!recording) return;
+    var t = Date.now()/1000;
+    curSpd = Math.max(0, 20 + 8*Math.sin(t*.3) + (Math.random()-.5)*4);
+    if (curSpd > maxSpd) maxSpd = curSpd;
+    spdSamples.push(curSpd);
+    var step = (curSpd/3.6)*.5;
+    demoHdg += (Math.random()-.5)*12;
+    demoLat += (step * Math.cos(demoHdg*Math.PI/180)) / 111320;
+    demoLng += (step * Math.sin(demoHdg*Math.PI/180)) / (111320 * Math.cos(demoLat*Math.PI/180));
+    totalDist += step;
+    lastPos = [demoLat, demoLng];
+    if (showTrack) trackPts.push([demoLat, demoLng]);
+    mapUpdateMarker(demoLat, demoLng);
+    if (followMap) mapSetView(demoLat, demoLng);
+    mapUpdateTrack();
+    updateUI();
+  }, 500);
+}
+function hideDemoNotice() {
+  document.getElementById('demoNotice').style.display = 'none';
+  if (demoIv) { clearInterval(demoIv); demoIv = null; demoActive = false; }
+}
+
+// ── RECORDING ──────────────────────────────────────
+function toggleRec() {
+  recording = !recording;
+  var fab = document.getElementById('fabBtn');
+  if (recording) {
+    fab.textContent = '⏹'; fab.classList.add('rec');
+    if (!startTime) { startTime = Date.now(); timerIv = setInterval(tick,1000); }
+    if (!gpsOk && !demoActive) startGPS();
+  } else {
+    fab.textContent = '▶'; fab.classList.remove('rec');
+  }
+}
+function tick() {
+  var e = Math.floor((Date.now()-startTime)/1000);
+  var h=String(Math.floor(e/3600)).padStart(2,'0');
+  var m=String(Math.floor((e%3600)/60)).padStart(2,'0');
+  var s=String(e%60).padStart(2,'0');
+  document.getElementById('timerEl').textContent = h+':'+m+':'+s;
+}
+
+// ── UI ─────────────────────────────────────────────
+function updateUI() {
+  document.getElementById('spdVal').textContent = curSpd.toFixed(1);
+  document.getElementById('spdSub').textContent = recording
+    ? (curSpd < 1 ? 'Zatrzymany' : 'Jazda aktywna')
+    : 'Naciśnij ▶ aby rozpocząć';
+  var avg = spdSamples.length ? spdSamples.reduce(function(a,b){return a+b},0)/spdSamples.length : 0;
+  document.getElementById('avgVal').textContent = avg.toFixed(1);
+  document.getElementById('maxVal').textContent = maxSpd.toFixed(1);
+  if (totalDist >= 1000) {
+    document.getElementById('dstVal').textContent = (totalDist/1000).toFixed(2);
+    document.getElementById('dstUnit').textContent = 'km';
+  } else {
+    document.getElementById('dstVal').textContent = Math.round(totalDist);
+    document.getElementById('dstUnit').textContent = 'm';
+  }
+}
+
+// ── MAP CONTROLS ───────────────────────────────────
+function toggleFollow() {
+  followMap = !followMap;
+  document.getElementById('btnFollow').classList.toggle('active', followMap);
+}
+function toggleTrack() {
+  showTrack = !showTrack;
+  document.getElementById('btnTrack').classList.toggle('active', showTrack);
+  mapUpdateTrack();
+}
+
+// ── HELPERS ────────────────────────────────────────
+function haversine(la1,lo1,la2,lo2) {
+  var R=6371000, dLa=(la2-la1)*Math.PI/180, dLo=(lo2-lo1)*Math.PI/180;
+  var a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function setBadge(cls, txt) {
+  document.getElementById('gpsBadge').className = 'badge ' + cls;
+  document.getElementById('gpsText').textContent = txt;
+}
+
+// ── INIT ───────────────────────────────────────────
+window.addEventListener('resize', function(){ resizeCanvas(); drawCanvas(); });
+
+// Try to load Leaflet; if it fails within 5s → canvas fallback
+var leafletTimer = setTimeout(fallbackCanvas, 5000);
+loadLeaflet(function() {
+  clearTimeout(leafletTimer);
+  initLeaflet();
+  // also start GPS probe
+  startGPS();
+});
+
+updateUI();
+drawCanvas(); // show canvas initially until leaflet loads
+</script>
+</body>
+</html>
